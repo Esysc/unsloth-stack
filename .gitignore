@@ -1,0 +1,9 @@
+.git
+.env
+.pids/
+logs/
+caddy_data/
+caddy_config/
+.cache
+.venv/
+__pycache__/

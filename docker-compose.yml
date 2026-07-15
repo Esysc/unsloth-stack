@@ -1,0 +1,12 @@
+services:
+  caddy:
+    image: caddy:latest
+    container_name: caddy-proxy
+    restart: unless-stopped
+    network_mode: host
+    env_file:
+      - .env
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - ./caddy_data:/data
+      - ./caddy_config:/config

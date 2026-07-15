@@ -1,0 +1,8 @@
+{$DOMAIN} {
+    reverse_proxy {$STUDIO_HOST}:{$STUDIO_PORT} {
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
+    }
+
+    encode gzip zstd
+}
