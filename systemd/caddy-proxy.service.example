@@ -1,0 +1,24 @@
+# systemd/caddy-proxy.service.example
+[Unit]
+Description=Caddy Proxy Docker Compose Service
+After=network-online.target docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+# Replace 'your-user' and 'your-group' with the actual user and group that should run the service
+# The user must be a member of the 'docker' group to run docker compose commands
+User=your-user
+Group=your-group
+WorkingDirectory=/path/to/unsloth-stack
+EnvironmentFile=/path/to/unsloth-stack/.env
+ExecStart=/usr/bin/docker compose -f /path/to/unsloth-stack/docker-compose.yml up -d caddy
+ExecStop=/usr/bin/docker compose -f /path/to/unsloth-stack/docker-compose.yml down caddy
+Restart=on-failure
+RestartSec=5
+TimeoutStartSec=30
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target

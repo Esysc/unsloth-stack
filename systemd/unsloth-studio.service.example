@@ -1,0 +1,22 @@
+# systemd/unsloth-studio.service.example
+[Unit]
+Description=Unsloth Studio Service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# Replace 'your-user' and 'your-group' with the actual user and group that should run the service
+User=your-user
+Group=your-group
+WorkingDirectory=/path/to/unsloth-stack
+EnvironmentFile=/path/to/unsloth-stack/.env
+Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:$HOME/.local/bin:$HOME/bin
+ExecStart=unsloth studio -H ${STUDIO_HOST} -p ${STUDIO_PORT}
+Restart=on-failure
+RestartSec=5
+StandardOutput=file-append:/path/to/unsloth-stack/logs/unsloth-studio.log
+StandardError=file-append:/path/to/unsloth-stack/logs/unsloth-studio.log
+
+[Install]
+WantedBy=multi-user.target

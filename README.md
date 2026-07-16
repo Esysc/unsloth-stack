@@ -78,6 +78,68 @@ Ports 80 and 443 must be reachable from the internet. Forward these to your mach
 - **Caddy** runs in a Docker container with `network_mode: host`, giving it direct access to your machine's network. It automatically provisions TLS certificates for your domain via Let's Encrypt.
 - **Unsloth Studio** runs as a background process managed by `run.sh`. Process IDs are tracked in `.pids/` and logs are written to `logs/`.
 
+## Systemd Integration
+
+For production environments, you can run the Unsloth Stack components as separate systemd services.
+
+### Unsloth Studio Service
+
+An example `Type=simple` service file is provided at `systemd/unsloth-studio.service.example`.
+
+To use it:
+
+1. Copy the example service file to the systemd directory:
+   ```bash
+   sudo cp systemd/unsloth-studio.service.example /etc/systemd/system/unsloth-studio.service
+   ```
+
+2. Edit `/etc/systemd/system/unsloth-studio.service` to match your environment:
+   - Update `WorkingDirectory` to the path of your unsloth-stack directory
+   - Update `EnvironmentFile` to point to your `.env` file
+   - Update the log file paths in `StandardOutput` and `StandardError`
+   - Update `User` and `Group` to the non-root user and group that should run the service
+
+3. Reload systemd and start the service:
+   ```bash
+   sudo systemctl daemon-reload
+   sudo systemctl enable unsloth-studio.service
+   sudo systemctl start unsloth-studio.service
+   ```
+
+4. Check the service status:
+   ```bash
+   sudo systemctl status unsloth-studio.service
+   ```
+
+### Caddy Proxy Service (Docker Compose)
+
+An example service file for starting the Caddy Docker Compose service is provided at `systemd/caddy-proxy.service.example`.
+
+To use it:
+
+1. Copy the example service file to the systemd directory:
+   ```bash
+   sudo cp systemd/caddy-proxy.service.example /etc/systemd/system/caddy-proxy.service
+   ```
+
+2. Edit `/etc/systemd/system/caddy-proxy.service` to match your environment:
+   - Update `WorkingDirectory` to the path of your unsloth-stack directory
+   - Update `EnvironmentFile` to point to your `.env` file
+   - Update the `ExecStart` and `ExecStop` paths to match the location of your `docker-compose.yml` file
+   - Update `User` and `Group` to the non-root user and group that should run the service. **Note:** The user must be a member of the `docker` group to run `docker compose` commands.
+
+3. Reload systemd and start the service:
+   ```bash
+   sudo systemctl daemon-reload
+   sudo systemctl enable caddy-proxy.service
+   sudo systemctl start caddy-proxy.service
+   ```
+
+4. Check the service status:
+   ```bash
+   sudo systemctl status caddy-proxy.service
+   ```
+
 ## Files
 
 | File               | Description                                      |
