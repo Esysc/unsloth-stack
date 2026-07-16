@@ -24,10 +24,10 @@ STUDIO_PORT="${STUDIO_PORT:-8000}"
 
 ensure_unsloth_installed() {
     if command -v unsloth &>/dev/null; then
-        return 0
+        echo "    Unsloth CLI found. Running installer to check for upgrades..."
+    else
+        echo "    Unsloth CLI not found. Installing..."
     fi
-
-    echo "    Unsloth CLI not found. Installing..."
     curl -fsSL https://unsloth.ai/install.sh | sh
     if ! command -v unsloth &>/dev/null; then
         echo "    ERROR: Installation failed. Install manually:"
