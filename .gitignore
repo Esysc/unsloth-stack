@@ -7,3 +7,4 @@ caddy_config/
 .cache
 .venv/
 __pycache__/
+unsloth_compiled_cache
