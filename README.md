@@ -25,7 +25,7 @@ Caddy handles TLS termination (automatic HTTPS via Let's Encrypt) and proxies re
 - A **public domain** with DNS A record pointing to your machine's public IP
 - Port **80** and **443** open on your router/firewall
 
-Unsloth Studio is installed automatically on first run if not present.
+Unsloth Studio is checked on each start and the installer is run so it can install or upgrade the CLI if needed.
 
 ## Setup
 
