@@ -8,3 +8,4 @@ caddy_config/
 .venv/
 __pycache__/
 unsloth_compiled_cache
+.vscode
