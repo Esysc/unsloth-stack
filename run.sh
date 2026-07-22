@@ -28,10 +28,10 @@ ensure_unsloth_installed() {
     else
         echo "    Unsloth CLI not found. Installing..."
     fi
-    curl -fsSL https://unsloth.ai/install.sh | sh
+    curl -fsSL https://unsloth.ai/install.sh | UNSLOTH_SKIP_AUTOSTART=1 sh
     if ! command -v unsloth &>/dev/null; then
         echo "    ERROR: Installation failed. Install manually:"
-        echo "           curl -fsSL https://unsloth.ai/install.sh | sh"
+        echo "           curl -fsSL https://unsloth.ai/install.sh | UNSLOTH_SKIP_AUTOSTART=1 sh"
         return 1
     fi
     echo "    Unsloth installed successfully."
