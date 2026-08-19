@@ -1,11 +1,92 @@
 {
     admin off
+    order authenticate first
+    order trace before reverse_proxy
+    order authorize before reverse_proxy
+
+    # Security configuration with MFA
+    security {
+        # Local user store backing file
+        local identity store localdb {
+            realm local
+            path /var/lib/caddy/users.json
+        }
+
+        # Email configuration for password reset
+        messaging email provider localhost-smtp-server {
+            address 127.0.0.1:1025
+            protocol smtp
+            passwordless
+            sender root@localhost "Unsloth Studio MFA Portal"
+            bcc admin@localhost
+        }
+
+        # Authentication portal with MFA
+        authentication portal unsloth-portal {
+            # JWT configuration for tokens
+            crypto default token lifetime 3600
+            crypto key sign-verify {env.JWT_SECRET}
+
+            # Enable local identity store
+            enable identity store localdb
+
+            # Cookie settings
+            cookie domain {$DOMAIN}
+
+            # UI configuration
+            ui {
+                # Logo fetched from Unsloth instance at container startup
+                static_asset "assets/images/logo.svg" "image/svg+xml" /var/lib/caddy/assets/logo.svg
+                static_asset "assets/images/logo.png" "image/png" /var/lib/caddy/assets/logo.png
+                logo url "/auth/assets/images/logo.svg"
+                logo description "Unsloth Studio"
+
+                links {
+                    "Unsloth Studio" https://{$DOMAIN} target_blank icon "las la-flask"
+                }
+            }
+
+            # User transformation
+            transform user {
+                match origin local
+                action add role authp/user
+                require mfa
+                ui link "My Identity" /auth/whoami icon "las la-user"
+            }
+        }
+
+        # Authorization policy
+        authorization policy unsloth-policy {
+            set auth url /auth
+            crypto key verify {env.JWT_SECRET}
+            allow roles authp/admin authp/user
+        }
+    }
 }
 
+# Main reverse proxy with same-domain authentication
 {$DOMAIN} {
-    reverse_proxy {$STUDIO_HOST}:{$STUDIO_PORT} {
-        header_up Host {host}
-        header_up X-Real-IP {remote_host}
+    @public_api {
+        path /api /api/* /v1 /v1/* /openai /openai/* /chat/completions
+    }
+
+    route /auth* {
+        authenticate with unsloth-portal
+    }
+
+    route @public_api {
+        reverse_proxy {$STUDIO_HOST}:{$STUDIO_PORT} {
+            header_up Host {host}
+            header_up X-Real-IP {remote_host}
+        }
+    }
+
+    route {
+        authorize with unsloth-policy
+        reverse_proxy {$STUDIO_HOST}:{$STUDIO_PORT} {
+            header_up Host {host}
+            header_up X-Real-IP {remote_host}
+        }
     }
 
     encode gzip zstd

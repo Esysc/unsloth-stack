@@ -4,6 +4,7 @@
 logs/
 caddy_data/
 caddy_config/
+caddy_users/
 .cache
 .venv/
 __pycache__/

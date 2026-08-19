@@ -1,6 +1,6 @@
 services:
   caddy:
-    image: caddy:latest
+    build: .
     container_name: caddy-proxy
     restart: unless-stopped
     network_mode: host
@@ -10,3 +10,4 @@ services:
       - ./Caddyfile:/etc/caddy/Caddyfile
       - ./caddy_data:/data
       - ./caddy_config:/config
+      - ./caddy_users:/var/lib/caddy

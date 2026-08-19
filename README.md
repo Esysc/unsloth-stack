@@ -1,6 +1,6 @@
 # Unsloth Stack
 
-Run [Unsloth Studio](https://docs.unsloth.ai/basics/getting-started-with-chat) behind a Caddy reverse proxy, accessible over the internet via a custom domain.
+Run [Unsloth Studio](https://docs.unsloth.ai/basics/getting-started-with-chat) behind a Caddy reverse proxy with **multi-factor authentication (MFA)**, accessible over the internet via a custom domain.
 
 ## Architecture
 
@@ -11,13 +11,14 @@ Internet
 [DNS: your-domain.com] --> your public IP
    |
    v
-[Caddy] (Docker, host network mode, port 443/80)
+[Caddy + caddy-security] (Docker, host network mode, port 443/80)
    |
-   v
-[Unsloth Studio] (local, 192.168.x.x:8000)
+   ├── /auth/*                          → Authentication portal (login + TOTP MFA)
+   ├── /api, /v1, /openai, /chat/*      → Unsloth Studio (no auth - API access)
+   └── everything else                  → Unsloth Studio (requires MFA login)
 ```
 
-Caddy handles TLS termination (automatic HTTPS via Let's Encrypt) and proxies requests to Unsloth Studio running on your local machine.
+Caddy handles TLS termination (automatic HTTPS via Let's Encrypt), MFA authentication via the [caddy-security](https://github.com/greenpau/caddy-security) plugin, and proxies requests to Unsloth Studio running on your local machine. API endpoints are accessible without authentication for programmatic access.
 
 ## Prerequisites
 
@@ -37,11 +38,17 @@ cp .env.example .env
 
 Edit `.env` with your values:
 
-| Variable       | Description                              | Default                   |
-|----------------|------------------------------------------|---------------------------|
-| `STUDIO_HOST`  | Local IP of the machine running Studio   | `192.168.x.x`           |
-| `STUDIO_PORT`  | Port Unsloth Studio listens on           | `8000`                    |
-| `DOMAIN`       | Public domain for reverse proxy          | `your-domain.com`   |
+| Variable | Description | Default |
+|---|---|---|
+| `STUDIO_HOST` | Local IP of the machine running Studio | `192.168.x.x` |
+| `STUDIO_PORT` | Port Unsloth Studio listens on | `8000` |
+| `DOMAIN` | Public domain for reverse proxy | `your-domain.com` |
+| `ADMIN_USERNAME` | Initial admin username for MFA portal | `admin` |
+| `ADMIN_PASSWORD` | Initial admin password (bcrypt-hashed at boot) | *(required)* |
+| `ADMIN_EMAIL` | Initial admin email address | *(required)* |
+| `JWT_SECRET` | Secret key for JWT token signing | *(required)* |
+
+> **Security note:** Change `ADMIN_PASSWORD` and `JWT_SECRET` from their defaults before deploying to production.
 
 ### 2. Point DNS to your machine
 
@@ -72,6 +79,34 @@ Ports 80 and 443 must be reachable from the internet. Forward these to your mach
 # Stop both services
 ./run.sh stop
 ```
+
+## MFA Setup
+
+1. Start the stack with `./run.sh start`
+2. Open `https://your-domain.com` in a browser — you will be redirected to the login portal
+3. Log in with the `ADMIN_USERNAME` and `ADMIN_PASSWORD` from your `.env`
+4. Click **Portal Settings** in the navigation bar
+5. Under **Multi-Factor Authentication**, scan the QR code with an authenticator app (Google Authenticator, Authy, etc.)
+6. Enter the 6-digit TOTP code to verify and complete enrollment
+
+> **Important:** Complete MFA enrollment immediately after first login. Until enrolled, you will only have single-factor authentication.
+
+## API Access
+
+API endpoints are accessible without authentication for programmatic access:
+
+```bash
+# Example: chat completion via API
+curl https://your-domain.com/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{"model": "unsloth/Qwen3-8B", "messages": [{"role": "user", "content": "Hello"}]}'
+```
+
+The following paths bypass MFA and are proxied directly to Unsloth Studio:
+- `/api/*`
+- `/v1/*`
+- `/openai/*`
+- `/chat/completions`
 
 ## How It Works
 
@@ -142,13 +177,15 @@ To use it:
 
 ## Files
 
-| File               | Description                                      |
-|--------------------|--------------------------------------------------|
-| `run.sh`           | Management script (start/stop/restart/status)    |
-| `docker-compose.yml` | Docker Compose config for Caddy                |
-| `Caddyfile`        | Caddy reverse proxy configuration                |
-| `.env.example`     | Template for environment configuration           |
-| `.env`             | Your local configuration (not committed)         |
+| File | Description |
+|---|---|
+| `run.sh` | Management script (start/stop/restart/status) |
+| `docker-compose.yml` | Docker Compose config for Caddy |
+| `Caddyfile` | Caddy reverse proxy + MFA configuration |
+| `Dockerfile` | Custom Caddy image with caddy-security plugin |
+| `entrypoint.sh` | Bootstrap script for admin user creation |
+| `.env.example` | Template for environment configuration |
+| `.env` | Your local configuration (not committed) |
 
 ## Troubleshooting
 
