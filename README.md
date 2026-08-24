@@ -15,6 +15,7 @@ Internet
    |
    ├── /auth/*                          → Authentication portal (login + TOTP MFA)
    ├── /api, /v1, /openai, /chat/*      → Unsloth Studio (no auth - API access)
+   ├── requests from LAN IPs            → Unsloth Studio (no auth, plain HTTP or HTTPS)
    └── everything else                  → Unsloth Studio (requires MFA login)
 ```
 
@@ -90,6 +91,34 @@ Ports 80 and 443 must be reachable from the internet. Forward these to your mach
 6. Enter the 6-digit TOTP code to verify and complete enrollment
 
 > **Important:** Complete MFA enrollment immediately after first login. Until enrolled, you will only have single-factor authentication.
+
+## Local Network Access (LAN Bypass)
+
+Clients connecting from trusted private networks skip the login portal and MFA entirely and go straight to Unsloth Studio:
+
+- `192.168.0.0/16`
+- `10.0.0.0/8`
+- `172.16.0.0/12`
+- `127.0.0.0/8`, `::1` (localhost)
+- `fc00::/7` (IPv6 unique-local)
+
+Internet clients still get the full password + TOTP MFA flow.
+
+### Plain HTTP for local clients
+
+Trusted LAN clients can use plain `http://` (port 80) — no TLS and no redirect:
+
+```bash
+http://your-domain.com        # direct access from the LAN
+http://<machine-lan-ip>/      # also works when accessing by IP
+https://your-domain.com       # TLS without login, also available
+```
+
+Internet clients hitting port 80 are still redirected to `https://` automatically (`auto_https disable_redirects` removes Caddy's built-in redirect so it cannot shadow the LAN check; the explicit `@wan_clients` route handles it instead).
+
+To customize the trusted ranges, edit the `(lan_ranges)` snippet in the `Caddyfile` and restart with `./run.sh restart`.
+
+> **Security note:** Anyone who can reach this machine from a trusted range gets unauthenticated access to the Studio UI. Only trust ranges that are genuinely under your control — for example, clients connecting through a VPN into your LAN will also bypass MFA.
 
 ## API Access
 

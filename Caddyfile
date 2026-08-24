@@ -1,8 +1,27 @@
+# Shared reverse proxy definition for Unsloth Studio
+(proxy_studio) {
+    reverse_proxy {$STUDIO_HOST}:{$STUDIO_PORT} {
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
+    }
+}
+
+# Trusted local network ranges (used by both the HTTPS and HTTP sites).
+# Edit these ranges if your LAN uses different addressing.
+(lan_ranges) {
+    remote_ip 192.168.0.0/16 10.0.0.0/8 172.16.0.0/12 127.0.0.0/8 ::1 fc00::/7
+}
+
 {
     admin off
     order authenticate first
     order trace before reverse_proxy
     order authorize before reverse_proxy
+
+    # Disable the automatic HTTP->HTTPS redirect: it would be prepended to the
+    # :80 server and shadow the LAN bypass below. Internet clients are still
+    # redirected to HTTPS by the explicit @wan_clients route in the :80 site.
+    auto_https disable_redirects
 
     # Security configuration with MFA
     security {
@@ -70,23 +89,34 @@
         path /api /api/* /v1 /v1/* /openai /openai/* /chat/completions
     }
 
+    # Clients from trusted local networks skip the login/MFA portal entirely.
+    @trusted_lan {
+        import lan_ranges
+    }
+
+    @untrusted {
+        not {
+            import lan_ranges
+        }
+    }
+
     route /auth* {
         authenticate with unsloth-portal
     }
 
     route @public_api {
-        reverse_proxy {$STUDIO_HOST}:{$STUDIO_PORT} {
-            header_up Host {host}
-            header_up X-Real-IP {remote_host}
-        }
+        import proxy_studio
     }
 
-    route {
+    # Local LAN traffic: direct access, no authentication required
+    route @trusted_lan {
+        import proxy_studio
+    }
+
+    # Internet traffic: full password + MFA flow
+    route @untrusted {
         authorize with unsloth-policy
-        reverse_proxy {$STUDIO_HOST}:{$STUDIO_PORT} {
-            header_up Host {host}
-            header_up X-Real-IP {remote_host}
-        }
+        import proxy_studio
     }
 
     encode gzip zstd
@@ -99,5 +129,24 @@
 }
 
 :80 {
-    redir https://{$DOMAIN}{uri}
+    @trusted_lan {
+        import lan_ranges
+    }
+
+    @wan_clients {
+        not {
+            import lan_ranges
+        }
+    }
+
+    # Trusted LAN clients: plain HTTP, no TLS, no authentication
+    route @trusted_lan {
+        import proxy_studio
+    }
+
+    # Everyone else: force HTTPS (must be inside a route so it does not
+    # run before the LAN check — Caddy orders redir before route)
+    route @wan_clients {
+        redir https://{$DOMAIN}{uri}
+    }
 }
