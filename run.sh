@@ -19,6 +19,9 @@ fi
 
 STUDIO_HOST="${STUDIO_HOST:-192.168.x.x}"
 STUDIO_PORT="${STUDIO_PORT:-8000}"
+# Seconds cmd_start waits for the studio to accept connections. A cold start
+# imports PyTorch/Unsloth/Transformers, so this can take a few minutes.
+STUDIO_READY_TIMEOUT="${STUDIO_READY_TIMEOUT:-120}"
 
 # --- Helpers ---
 
@@ -65,6 +68,30 @@ wait_for_port() {
     return 0
 }
 
+# Blocks until the studio answers on STUDIO_HOST:STUDIO_PORT. Fails fast if the
+# given PID dies while we wait, and reports how long the startup actually took.
+wait_for_studio() {
+    local pid="${1:-}" timeout="$STUDIO_READY_TIMEOUT" start_ts elapsed
+    start_ts=$(date +%s)
+    while ! wait_for_port "$STUDIO_HOST" "$STUDIO_PORT" 2; do
+        elapsed=$(( $(date +%s) - start_ts ))
+        if [[ -n "$pid" ]] && ! kill -0 "$pid" 2>/dev/null; then
+            echo "    ERROR: Unsloth Studio (PID $pid) exited after ${elapsed}s. Check $STUDIO_LOG"
+            return 1
+        fi
+        if (( elapsed >= timeout )); then
+            echo "    ERROR: Unsloth Studio did not listen on ${STUDIO_HOST}:${STUDIO_PORT} within ${timeout}s."
+            if [[ -n "$pid" ]]; then
+                echo "           PID $pid is still alive and may still be loading. Logs: $STUDIO_LOG"
+            fi
+            return 1
+        fi
+        echo "    Unsloth Studio not ready yet (${elapsed}s/${timeout}s), waiting..."
+        sleep 2
+    done
+    echo "    Unsloth Studio is accepting connections (ready after $(( $(date +%s) - start_ts ))s)."
+}
+
 # --- Commands ---
 
 cmd_start() {
@@ -78,8 +105,15 @@ cmd_start() {
 
     echo "==> Starting Unsloth Studio on ${STUDIO_HOST}:${STUDIO_PORT}..."
     if is_studio_running; then
-        echo "    Unsloth Studio is already running (PID $(cat "$STUDIO_PID_FILE"))."
-        return 0
+        local running_pid
+        running_pid=$(cat "$STUDIO_PID_FILE")
+        if wait_for_port "$STUDIO_HOST" "$STUDIO_PORT" 1; then
+            echo "    Unsloth Studio is already running (PID $running_pid)."
+            return 0
+        fi
+        echo "    WARNING: PID $running_pid is alive but not accepting connections on ${STUDIO_HOST}:${STUDIO_PORT}."
+        echo "             It may still be loading -- check '$0 logs', or '$0 restart' to relaunch it."
+        return 1
     fi
 
     ensure_unsloth_installed
@@ -89,15 +123,15 @@ cmd_start() {
     local pid=$!
     echo "$pid" > "$STUDIO_PID_FILE"
 
-    sleep 2
-    if is_studio_running; then
-        echo "    Unsloth Studio started (PID $pid)."
-        echo "    Logs: $STUDIO_LOG"
-    else
-        echo "    ERROR: Unsloth Studio failed to start. Check $STUDIO_LOG"
-        rm -f "$STUDIO_PID_FILE"
+    if ! wait_for_studio "$pid"; then
+        # Drop the PID file only if the process is really gone; a slow start
+        # still owns it and 'status'/'logs' should keep working.
+        kill -0 "$pid" 2>/dev/null || rm -f "$STUDIO_PID_FILE"
         return 1
     fi
+
+    echo "    Unsloth Studio started (PID $pid)."
+    echo "    Logs: $STUDIO_LOG"
 }
 
 cmd_stop() {
@@ -151,7 +185,13 @@ cmd_status() {
     fi
 
     if is_studio_running; then
-        echo "  Studio:      running (PID $(cat "$STUDIO_PID_FILE"))"
+        local studio_pid
+        studio_pid=$(cat "$STUDIO_PID_FILE")
+        if wait_for_port "$STUDIO_HOST" "$STUDIO_PORT" 1; then
+            echo "  Studio:      running (PID $studio_pid)"
+        else
+            echo "  Studio:      starting (PID $studio_pid) -- not accepting connections yet"
+        fi
     else
         echo "  Studio:      stopped"
     fi

@@ -43,6 +43,7 @@ Edit `.env` with your values:
 |---|---|---|
 | `STUDIO_HOST` | Local IP of the machine running Studio | `192.168.x.x` |
 | `STUDIO_PORT` | Port Unsloth Studio listens on | `8000` |
+| `STUDIO_READY_TIMEOUT` | Seconds `run.sh start` waits for Studio to accept connections | `120` |
 | `DOMAIN` | Public domain for reverse proxy | `your-domain.com` |
 | `ADMIN_USERNAME` | Initial admin username for MFA portal | `admin` |
 | `ADMIN_PASSWORD` | Initial admin password (bcrypt-hashed at boot) | *(required)* |
