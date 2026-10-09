@@ -42,8 +42,8 @@
 
         # Authentication portal with MFA
         authentication portal unsloth-portal {
-            # JWT configuration for tokens
-            crypto default token lifetime 3600
+            # JWT configuration for tokens (lifetime in seconds; 90000 = 25 hours)
+            crypto default token lifetime 90000
             crypto key sign-verify {env.JWT_SECRET}
 
             # Enable local identity store
